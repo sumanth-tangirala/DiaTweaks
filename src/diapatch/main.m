@@ -15,9 +15,9 @@
 static NSString *const kFeed = @"https://releases.diabrowser.com/BoostBrowser-updates.xml";
 static NSString *const kSparkle = @"http://www.andymatuschak.org/xml-namespaces/sparkle";
 static NSString *const kLocalIdentity = @"DiaPatches Local Signing";
-static NSString *const kReleases = @"https://api.github.com/repos/JaceThings/DiaTweaks/releases/latest";
+static NSString *const kReleases = @"https://api.github.com/repos/sumanth-tangirala/DiaTweaks/releases/latest";
 static NSString *const kReleaseAsset = @"DiaTweaks.zip";
-static NSString *const kCompare = @"https://api.github.com/repos/JaceThings/DiaTweaks/compare";
+static NSString *const kCompare = @"https://api.github.com/repos/sumanth-tangirala/DiaTweaks/compare";
 static NSString *const kDiaReleaseNotes = @"https://www.diabrowser.com/release-notes/latest";
 
 static NSString *gHome, *gApp, *gCache, *gPristine, *gStaged, *gReady;

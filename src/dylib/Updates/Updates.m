@@ -123,7 +123,7 @@ void DPHandOffAndQuit(NSArray<NSString *> *args) {
         [entry addEntriesFromDictionary:@{
             @"latest" : latest, @"available" : @(!staged), @"staged" : staged ? latest : NSNull.null,
             @"size" : [part isEqual:DPDia] ? @704038560 : @960161,
-            @"releaseNotes" : [part isEqual:DPDia] ? @"https://www.diabrowser.com/release-notes/latest" : @"https://github.com/JaceThings/DiaTweaks/releases",
+            @"releaseNotes" : [part isEqual:DPDia] ? @"https://www.diabrowser.com/release-notes/latest" : @"https://github.com/sumanth-tangirala/DiaTweaks/releases",
         }];
         found[part] = entry;
     }
