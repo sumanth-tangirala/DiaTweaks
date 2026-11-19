@@ -12,7 +12,31 @@ static void DPNoteFront(NSWindow *window) {
     if (recent.count > 20) [recent removeObjectAtIndex:0];
 }
 
+static char DPPendingKey;
+
+// Reading the tabs takes Dia ~20 ms, too long to do while it switches tabs, so the front tab is noted just after, once
+// for a burst of switches; anything that needs the order takes a note still owed first.
+static void DPNoteFrontSoon(NSWindow *window) {
+    if (!window || DPGet(window, &DPPendingKey)) return;
+    DPSet(window, &DPPendingKey, @YES);
+    __weak NSWindow *weak = window;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSWindow *window = weak;
+        if (!window || !DPGet(window, &DPPendingKey)) return;
+        DPSet(window, &DPPendingKey, nil);
+        DPNoteFront(window);
+    });
+}
+
+static void DPNoteFrontOwed(NSWindow *window) {
+    if (!DPGet(window, &DPPendingKey)) return;
+    DPSet(window, &DPPendingKey, nil);
+    DPNoteFront(window);
+}
+
 id DPTabBefore(NSWindow *window) {
+    DPTabsMemoScope;
+    DPNoteFrontOwed(window);
     NSString *active = DPActiveTabID(window);
     NSArray *tabs = [DPScriptWindow(window) valueForKey:@"appleScriptTabs"];
     NSArray<NSString *> *ids = [tabs valueForKey:@"tabId"];
@@ -26,13 +50,15 @@ id DPTabBefore(NSWindow *window) {
 }
 
 void DPForgetFrontTab(NSWindow *window) {
+    DPTabsMemoScope;
+    DPNoteFrontOwed(window);
     NSString *active = DPActiveTabID(window);
     if (active) [[DPRecent objectForKey:window] removeObject:active];
 }
 
 static void DPContentPane_viewDidMoveToWindow(NSView *self, SEL _cmd) {
     DPCallOriginal(DPContentPane_viewDidMoveToWindow, self);
-    DPNoteFront(self.window);
+    DPNoteFrontSoon(self.window);
 }
 
 void DPWatchFrontTabs(void) {

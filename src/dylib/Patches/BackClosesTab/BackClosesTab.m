@@ -2,7 +2,7 @@
 #import "Patches/CommandBar/Tabs.h"
 
 extern DPPatch DPBackClosesTab;
-static char DPStateKey;
+static char DPStateKey, DPPendingKey;
 
 @interface DPBackState : NSObject
 @property(strong) NSSet<NSString *> *knownIDs;
@@ -19,6 +19,7 @@ static NSArray<NSString *> *DPTabIDs(NSWindow *window) {
 
 // A tab that appears and comes to the front straight from another tab was opened by it.
 static void DPNote(NSWindow *window) {
+    DPTabsMemoScope;
     NSString *active = DPActiveTabID(window);
     NSArray<NSString *> *ids = DPTabIDs(window);
     if (!active || !ids.count) return;
@@ -37,6 +38,26 @@ static void DPNote(NSWindow *window) {
     state.lastFrontID = active;
 }
 
+// Reading the tabs takes Dia ~20 ms, too long to do while it switches tabs, so a look is taken just after, once for a
+// burst of switches; ⌘[ takes any look still owed first.
+static void DPNoteSoon(NSWindow *window) {
+    if (DPGet(window, &DPPendingKey)) return;
+    DPSet(window, &DPPendingKey, @YES);
+    __weak NSWindow *weak = window;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSWindow *window = weak;
+        if (!window || !DPGet(window, &DPPendingKey)) return;
+        DPSet(window, &DPPendingKey, nil);
+        if (DPBackClosesTab.on) DPNote(window);
+    });
+}
+
+static void DPNoteOwed(NSWindow *window) {
+    if (!DPGet(window, &DPPendingKey)) return;
+    DPSet(window, &DPPendingKey, nil);
+    DPNote(window);
+}
+
 static NSMenuItem *DPBackItem(void) {
     for (NSMenuItem *top in NSApp.mainMenu.itemArray)
         for (NSMenuItem *item in top.submenu.itemArray)
@@ -51,12 +72,12 @@ static BOOL DPCanGoBack(NSMenuItem *back) {
 
 static void DPContentPane_viewDidMoveToWindow(NSView *self, SEL _cmd) {
     DPCallOriginal(DPContentPane_viewDidMoveToWindow, self);
-    if (self.window && DPBackClosesTab.on) DPNote(self.window);
+    if (self.window && DPBackClosesTab.on) DPNoteSoon(self.window);
 }
 
 static void DPNewTabPage_viewDidMoveToWindow(NSView *self, SEL _cmd) {
     DPCallOriginal(DPNewTabPage_viewDidMoveToWindow, self);
-    if (self.window && DPBackClosesTab.on) DPNote(self.window);
+    if (self.window && DPBackClosesTab.on) DPNoteSoon(self.window);
 }
 
 static void DPInstallBackClosesTab(void) {
@@ -67,6 +88,8 @@ static void DPInstallBackClosesTab(void) {
         NSWindow *window = event.window;
         if (!DPBackClosesTab.on || event.keyCode != 33 || flags != NSEventModifierFlagCommand || !window) return event;
         NSMenuItem *back = DPBackItem();
+        DPTabsMemoScope;
+        DPNoteOwed(window);
         NSString *active = DPActiveTabID(window);
         DPBackState *state = DPGet(window, &DPStateKey);
         id origin = DPScriptTab(window, state.originOf[active]);
