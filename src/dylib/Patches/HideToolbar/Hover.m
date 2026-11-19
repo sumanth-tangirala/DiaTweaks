@@ -3,12 +3,14 @@
 static const CGFloat DPToolbarHoverHeight = 8;
 static char DPHoverKey;
 
-static NSTimer *DPEase(CGFloat from, CGFloat to, void (^step)(CGFloat value, BOOL done)) {
-    CFTimeInterval start = CACurrentMediaTime();
+// The minimal bar opens fast and settles softly; everything else keeps the slower smooth step.
+static NSTimer *DPEase(CGFloat from, CGFloat to, BOOL quick, void (^step)(CGFloat value, BOOL done)) {
+    CFTimeInterval start = CACurrentMediaTime(), duration = quick ? 0.14 : 0.25;
     NSTimer *timer = [NSTimer timerWithTimeInterval:1.0 / 120 repeats:YES block:^(NSTimer *timer) {
-        CGFloat t = MIN(1, (CACurrentMediaTime() - start) / 0.25);
+        CGFloat t = MIN(1, (CACurrentMediaTime() - start) / duration);
         if (t == 1) [timer invalidate];
-        step(from + (to - from) * t * t * (3 - 2 * t), t == 1);
+        CGFloat eased = quick ? 1 - pow(1 - t, 3) : t * t * (3 - 2 * t);
+        step(from + (to - from) * eased, t == 1);
     }];
     [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
     return timer;
@@ -25,6 +27,7 @@ static NSTimer *DPEase(CGFloat from, CGFloat to, void (^step)(CGFloat value, BOO
     if (hover) return hover;
     hover = [DPToolbarHover new];
     hover.pane = pane;
+    hover.minimalTarget = -1;
     DPSet(pane, &DPHoverKey, hover);
     return hover;
 }
@@ -81,7 +84,7 @@ static NSTimer *DPEase(CGFloat from, CGFloat to, void (^step)(CGFloat value, BOO
     _revealed = revealed;
     [self.animation invalidate];
     __weak DPToolbarHover *weakSelf = self;
-    self.animation = DPEase(self.progress, revealed, ^(CGFloat value, BOOL done) {
+    self.animation = DPEase(self.progress, revealed, NO, ^(CGFloat value, BOOL done) {
         DPToolbarHover *me = weakSelf;
         if (!me.pane) return;
         me.progress = value;
@@ -98,7 +101,7 @@ static NSTimer *DPEase(CGFloat from, CGFloat to, void (^step)(CGFloat value, BOO
     _inPlace = inPlace;
     [self.inPlaceAnimation invalidate];
     __weak DPToolbarHover *weakSelf = self;
-    self.inPlaceAnimation = DPEase(self.inPlaceProgress, inPlace, ^(CGFloat value, BOOL done) {
+    self.inPlaceAnimation = DPEase(self.inPlaceProgress, inPlace, DPMinimalGap(self.pane) > 0, ^(CGFloat value, BOOL done) {
         DPToolbarHover *me = weakSelf;
         if (!me.pane) return;
         me.inPlaceProgress = value;

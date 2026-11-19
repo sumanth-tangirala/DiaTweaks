@@ -1,7 +1,7 @@
 #import "StdPatch/StdPatch.h"
 #include <simd/simd.h>
 
-extern DPPatch DPHideToolbar, DPRevealToolbarOnHover, DPShowToolbarWithSidebar, DPShowToolbarOnNewTab, DPShowToolbarWithTopTabs, DPPlainSelectedTab;
+extern DPPatch DPMinimalToolbar, DPHideToolbar, DPRevealToolbarOnHover, DPShowToolbarWithSidebar, DPShowToolbarOnNewTab, DPShowToolbarWithTopTabs, DPPlainSelectedTab;
 extern DPPatch DPShowLoadingProgress;
 extern NSHashTable<NSView *> *DPPanes;
 
@@ -9,7 +9,11 @@ extern NSHashTable<NSView *> *DPPanes;
 @property (nonatomic, weak) NSView *pane, *bar, *bookmarks;
 @property (nonatomic, strong) NSTrackingArea *tracking;
 @property (nonatomic, strong) NSTimer *animation, *hideTimer, *inPlaceAnimation;
-@property (nonatomic) BOOL revealed, inPlace;
+@property (nonatomic) BOOL revealed, inPlace, minimalExpanded;
+@property (nonatomic, strong) NSView *strip;
+@property (nonatomic, strong) NSTimer *collapseTimer, *minimalAnimation;
+@property (nonatomic) CGFloat minimalProgress;  // 0 with no minimal bar, 1 with it; eased between
+@property (nonatomic) NSInteger minimalTarget;  // -1 until the first layout
 @property (nonatomic) CGFloat progress, inPlaceProgress;
 + (DPToolbarHover *)forPane:(NSView *)pane;
 + (DPToolbarHover *)attachToPane:(NSView *)pane;
@@ -21,6 +25,9 @@ CGFloat DPTop(NSView *pane, NSRect r);
 CGFloat DPBottom(NSView *pane, NSRect r);
 NSView *DPBookmarksUnder(NSView *pane, NSView *bar);
 BOOL DPKeptInPlace(NSView *pane);
+CGFloat DPMinimalGap(NSView *pane);
+CGFloat DPMinimalStripHeight(NSView *pane);
+void DPUpdateMinimalStrip(NSView *pane, DPToolbarHover *hover);
 NSString *DPVerifyKeptInPlace(DPPatch *patch);
 void DPApplyToolbar(NSView *pane);
 void DPApplyToolbarOpacity(DPToolbarHover *hover);

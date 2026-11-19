@@ -41,7 +41,7 @@ static BOOL DPTabsAtTop(NSView *pane) {
 }
 
 BOOL DPKeptInPlace(NSView *pane) {
-    return (DPShowToolbarWithSidebar.on && DPSidebarDocked(pane)) || (DPShowToolbarOnNewTab.on && DPShowsNewTab(pane)) ||
+    return [DPToolbarHover forPane:pane].minimalExpanded || (DPShowToolbarWithSidebar.on && DPSidebarDocked(pane)) || (DPShowToolbarOnNewTab.on && DPShowsNewTab(pane)) ||
            (DPShowToolbarWithTopTabs.on && DPTabsAtTop(pane));
 }
 
@@ -61,7 +61,15 @@ static CGFloat DPHidden(DPToolbarHover *hover) { return DPHideToolbar.progress *
 
 void DPApplyToolbarOpacity(DPToolbarHover *hover) {
     CGFloat alpha = 1 - DPHidden(hover) * (1 - hover.progress);
-    if (hover.bar && hover.bar.alphaValue != alpha) hover.bar.alphaValue = alpha;
+    // A minimal bar shows the toolbar's own background as its band, so Dia's colour carries over; only the controls fade.
+    BOOL band = hover.pane && DPMinimalStripHeight(hover.pane) > 0;
+    CGFloat barAlpha = band ? 1 : alpha;
+    if (hover.bar && hover.bar.alphaValue != barAlpha) hover.bar.alphaValue = barAlpha;
+    for (NSView *sub in hover.bar.subviews) {
+        BOOL fill = DPIsKind(sub, DPDiaColorView) && NSHeight(sub.frame) > 8;
+        CGFloat want = band && !fill ? alpha : 1;
+        if (sub.alphaValue != want) sub.alphaValue = want;
+    }
     if (hover.bookmarks && hover.bookmarks.alphaValue != alpha) hover.bookmarks.alphaValue = alpha;
     DPRepaintTabs(hover.pane.window);
 }
@@ -75,7 +83,8 @@ void DPApplyToolbar(NSView *pane) {
     DPToolbarHover *hover = [DPToolbarHover attachToPane:pane];
     [hover updateForBar:bar bookmarks:bookmarks];
 
-    CGFloat progress = DPHidden(hover);
+    DPUpdateMinimalStrip(pane, hover);  // First: it decides how much of the minimal bar there is.
+    CGFloat progress = DPHidden(hover), gap = DPMinimalGap(pane), strip = DPMinimalStripHeight(pane);
     DPApplyToolbarOpacity(hover);
     NSIndexSet *slots = [pane.subviews indexesOfObjectsPassingTest:^BOOL(NSView *sub, NSUInteger i, BOOL *stop) { return [bars containsObject:sub]; }];
     BOOL onTop = slots.firstIndex == pane.subviews.count - bars.count, atBottom = slots.lastIndex == bars.count - 1;
@@ -87,12 +96,15 @@ void DPApplyToolbar(NSView *pane) {
         for (NSView *view in bars) [pane addSubview:view positioned:NSWindowAbove relativeTo:nil];
     }
 
-    CGFloat edge = DPBottom(pane, DPLaidOutFrame(bars.lastObject)), shift = (edge - DPTop(pane, DPLaidOutFrame(bar))) * progress;
+    // A minimal bar leaves a gap at the top, which is where the pointer finds the menu bar, and a strip below it.
+    CGFloat edge = DPBottom(pane, DPLaidOutFrame(bars.lastObject)), shift = (edge - DPTop(pane, DPLaidOutFrame(bar)) - strip) * progress - gap;
     // Hidden bars wait above the pane so the address field's text cursor can't reach the page.
-    CGFloat lift = progress == 1 && !hover.revealed && hover.progress == 0 ? edge : 0;
+    CGFloat lift = progress == 1 && !hover.revealed && hover.progress == 0 ? edge + gap : 0;
+    // A minimal bar slides up until only its bottom edge shows, level with where the page starts.
+    if (strip > 0) lift = (edge - strip) * progress;
     for (NSView *view in bars) {
         NSRect laidOut = DPLaidOutFrame(view), frame = laidOut;
-        frame.origin.y += pane.isFlipped ? -lift : lift;
+        frame.origin.y += pane.isFlipped ? gap - lift : lift - gap;
         DPAssignFrame(view, laidOut, frame);
     }
     NSMutableArray<NSView *> *stack = [NSMutableArray new];

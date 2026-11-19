@@ -26,6 +26,7 @@ static NSString *DPVerifyHideToolbar(DPPatch *patch) {
     for (NSView *pane in panes) {
         NSView *bar = DPSubview(pane, DPDiaToolbar);
         if (!bar) return @"no toolbar found";
+        if (DPMinimalStripHeight(pane) > 0) continue;  // The minimal bar's own check covers it.
         DPToolbarHover *hover = [DPToolbarHover forPane:pane];
         if (hover.progress > 0 || hover.inPlaceProgress > 0) continue;
         NSView *bookmarks = DPBookmarksUnder(pane, bar);
